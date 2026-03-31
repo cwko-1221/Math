@@ -7,6 +7,7 @@ const express = require('express');
 const session = require('express-session');
 const cors = require('cors');
 const path = require('path');
+const os = require('os');
 
 // 初始化資料庫（會自動建立資料表與預設帳號）
 const db = require('./db/database');
@@ -98,6 +99,25 @@ app.get('/api/db-status', (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
+});
+
+// ========================================
+// 讀取內網 IP，以便產生給 iPad 掃描用的 QR code
+// ========================================
+app.get('/api/network/ip', (req, res) => {
+    const interfaces = os.networkInterfaces();
+    let localIp = '127.0.0.1';
+    for (const name of Object.keys(interfaces)) {
+        for (const iface of interfaces[name]) {
+            // Find an IPv4 address that is not internal
+            if (iface.family === 'IPv4' && !iface.internal) {
+                localIp = iface.address;
+                break;
+            }
+        }
+        if (localIp !== '127.0.0.1') break;
+    }
+    res.json({ ip: localIp, port: PORT });
 });
 
 // ========================================

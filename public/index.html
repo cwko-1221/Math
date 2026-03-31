@@ -89,6 +89,7 @@
                 <div class="qr-container" id="qr-container" title="點擊放大 QR Code">
                     <img id="qr-img" src="" alt="登入 QR Code">
                 </div>
+                <div id="lan-ip-hint" style="color:var(--text-muted); font-size: 0.85rem; margin-bottom: 24px;"></div>
 
                 <a href="/login.html" class="btn btn-primary btn-lg btn-block">
                     👉 前往登入頁面
@@ -106,9 +107,22 @@
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // 動態產生指向登入頁面的 QR code (基於目前網域)
-            const loginUrl = window.location.origin + '/login.html';
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 從這台電腦的伺服器抓取正確的無線網路小區 IP
+            let loginUrl = window.location.origin + '/login.html';
+            try {
+                const res = await fetch('/api/network/ip');
+                const data = await res.json();
+                if (data.ip && data.ip !== '127.0.0.1') {
+                    loginUrl = `http://${data.ip}:${data.port}/login.html`;
+                    const hintInfo = document.getElementById('lan-ip-hint');
+                    hintInfo.innerHTML = `請確保 iPad 連上與電腦相同的 Wi-Fi<br>或是輸入網址：<strong style="color:var(--text-primary)">http://${data.ip}:${data.port}</strong>`;
+                }
+            } catch (e) {
+                console.log('Fetching network ip failed, using origin.', e);
+            }
+
+            // 動態產生 QR code
             const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(loginUrl)}`;
             
             document.getElementById('qr-img').src = qrUrl;
