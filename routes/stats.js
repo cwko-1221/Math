@@ -79,7 +79,7 @@ router.get('/overview', async (req, res) => {
                 END as todayaccuracy,
                 COALESCE(ROUND(AVG(TimeTaken), 1), 0) as avgtime
             FROM QuestionLogs
-            WHERE StudentID = $1 AND DATE(Timestamp) = CURRENT_DATE
+            WHERE StudentID = $1 AND CAST(Timestamp AS DATE) = CURRENT_DATE
         `, [studentId]);
 
         const today = todayRows[0] || {};

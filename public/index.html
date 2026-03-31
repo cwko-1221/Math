@@ -110,16 +110,21 @@
         document.addEventListener('DOMContentLoaded', async () => {
             // 從這台電腦的伺服器抓取正確的無線網路小區 IP
             let loginUrl = window.location.origin + '/login.html';
-            try {
-                const res = await fetch('/api/network/ip');
-                const data = await res.json();
-                if (data.ip && data.ip !== '127.0.0.1') {
-                    loginUrl = `http://${data.ip}:${data.port}/login.html`;
-                    const hintInfo = document.getElementById('lan-ip-hint');
-                    hintInfo.innerHTML = `請確保 iPad 連上與電腦相同的 Wi-Fi<br>或是輸入網址：<strong style="color:var(--text-primary)">http://${data.ip}:${data.port}</strong>`;
+            
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                try {
+                    const res = await fetch('/api/network/ip');
+                    const data = await res.json();
+                    if (data.ip && data.ip !== '127.0.0.1') {
+                        loginUrl = `http://${data.ip}:${data.port}/login.html`;
+                        const hintInfo = document.getElementById('lan-ip-hint');
+                        if (hintInfo) {
+                            hintInfo.innerHTML = `請確保 iPad 連上與電腦相同的 Wi-Fi<br>或是輸入網址：<strong style="color:var(--text-primary)">http://${data.ip}:${data.port}</strong>`;
+                        }
+                    }
+                } catch (e) {
+                    console.log('Fetching network ip failed, using origin.', e);
                 }
-            } catch (e) {
-                console.log('Fetching network ip failed, using origin.', e);
             }
 
             // 動態產生 QR code
