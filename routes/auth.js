@@ -15,7 +15,7 @@ const db = require('../db/database');
  * POST /api/auth/login
  * Body: { studentId, password }
  */
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
     try {
         const { studentId, password } = req.body;
 
@@ -28,7 +28,8 @@ router.post('/login', (req, res) => {
         }
 
         // 查詢學生
-        const user = db.prepare('SELECT * FROM Users WHERE StudentID = ?').get(studentId);
+        const { rows } = await db.query('SELECT * FROM Users WHERE StudentID = $1', [studentId]);
+        const user = rows.length > 0 ? rows[0] : null;
 
         if (!user) {
             return res.status(401).json({
@@ -38,7 +39,7 @@ router.post('/login', (req, res) => {
         }
 
         // 驗證密碼
-        const isMatch = bcrypt.compareSync(password, user.PasswordHash);
+        const isMatch = bcrypt.compareSync(password, user.passwordhash);
         if (!isMatch) {
             return res.status(401).json({
                 success: false,
@@ -47,16 +48,16 @@ router.post('/login', (req, res) => {
         }
 
         // 設定 session
-        req.session.studentId = user.StudentID;
-        req.session.studentName = user.Name;
-        req.session.role = user.Role || 'student';
+        req.session.studentId = user.studentid;
+        req.session.studentName = user.name;
+        req.session.role = user.role || 'student';
 
         res.json({
             success: true,
             message: '登入成功',
             student: {
-                id: user.StudentID,
-                name: user.Name,
+                id: user.studentid,
+                name: user.name,
                 role: req.session.role
             }
         });

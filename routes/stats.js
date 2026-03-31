@@ -1,16 +1,11 @@
 /**
  * 統計資料路由 (Stats Routes)
- * 
- * GET /api/stats/overview     - 取得學生整體統計概覽
- * GET /api/stats/tags         - 取得各標籤正確率
- * GET /api/stats/history      - 取得作答歷史紀錄
- * GET /api/stats/weaknesses   - 取得弱點分析
- * GET /api/stats/time-analysis - 取得作答時間分析
  */
 
 const express = require('express');
 const router = express.Router();
 const db = require('../db/database');
+const { TAG_INFO } = require('../engine/questionGenerator');
 
 // ========================================
 // 認證中介軟體
@@ -49,54 +44,65 @@ router.use(requireAuth);
 // GET /api/stats/overview
 // 學生整體統計概覽
 // ========================================
-router.get('/overview', (req, res) => {
+router.get('/overview', async (req, res) => {
     try {
         const studentId = getTargetStudentId(req);
 
         // 整體統計
-        const overall = db.prepare(`
+        const { rows: overallRows } = await db.query(`
             SELECT 
-                COALESCE(SUM(TotalAttempted), 0) as totalQuestions,
-                COALESCE(SUM(TotalCorrect), 0) as totalCorrect,
+                COALESCE(SUM(TotalAttempted), 0) as totalquestions,
+                COALESCE(SUM(TotalCorrect), 0) as totalcorrect,
                 CASE 
                     WHEN SUM(TotalAttempted) > 0 
-                    THEN ROUND(CAST(SUM(TotalCorrect) AS REAL) / SUM(TotalAttempted) * 100, 1)
+                    THEN ROUND(CAST(SUM(TotalCorrect) AS NUMERIC) / SUM(TotalAttempted) * 100, 1)
                     ELSE 0 
-                END as overallAccuracy
+                END as overallaccuracy
             FROM StudentStats
-            WHERE StudentID = ?
-        `).get(studentId);
+            WHERE StudentID = $1
+        `, [studentId]);
+
+        const overall = overallRows[0] || {};
+        const totalQuestions = parseInt(overall.totalquestions) || 0;
+        const totalCorrect = parseInt(overall.totalcorrect) || 0;
+        const overallAccuracy = parseFloat(overall.overallaccuracy) || 0;
 
         // 今日統計
-        const today = db.prepare(`
+        const { rows: todayRows } = await db.query(`
             SELECT 
-                COUNT(*) as todayQuestions,
-                COALESCE(SUM(IsCorrect), 0) as todayCorrect,
+                COUNT(*) as todayquestions,
+                COALESCE(SUM(IsCorrect), 0) as todaycorrect,
                 CASE 
                     WHEN COUNT(*) > 0 
-                    THEN ROUND(CAST(SUM(IsCorrect) AS REAL) / COUNT(*) * 100, 1)
+                    THEN ROUND(CAST(SUM(IsCorrect) AS NUMERIC) / COUNT(*) * 100, 1)
                     ELSE 0 
-                END as todayAccuracy,
-                COALESCE(ROUND(AVG(TimeTaken), 1), 0) as avgTime
+                END as todayaccuracy,
+                COALESCE(ROUND(AVG(TimeTaken), 1), 0) as avgtime
             FROM QuestionLogs
-            WHERE StudentID = ? AND DATE(Timestamp) = DATE('now')
-        `).get(studentId);
+            WHERE StudentID = $1 AND DATE(Timestamp) = CURRENT_DATE
+        `, [studentId]);
+
+        const today = todayRows[0] || {};
+        const todayQuestions = parseInt(today.todayquestions) || 0;
+        const todayCorrect = parseInt(today.todaycorrect) || 0;
+        const todayAccuracy = parseFloat(today.todayaccuracy) || 0;
+        const avgTime = parseFloat(today.avgtime) || 0;
 
         // 練習次數（以每組 10 題計算）
-        const totalSessions = Math.floor((overall.totalQuestions || 0) / 10);
+        const totalSessions = Math.floor(totalQuestions / 10);
 
         res.json({
             success: true,
             overview: {
-                totalQuestions: overall.totalQuestions,
-                totalCorrect: overall.totalCorrect,
-                overallAccuracy: overall.overallAccuracy,
+                totalQuestions,
+                totalCorrect,
+                overallAccuracy,
                 totalSessions,
                 today: {
-                    questions: today.todayQuestions,
-                    correct: today.todayCorrect,
-                    accuracy: today.todayAccuracy,
-                    avgTime: today.avgTime,
+                    questions: todayQuestions,
+                    correct: todayCorrect,
+                    accuracy: todayAccuracy,
+                    avgTime,
                 }
             }
         });
@@ -111,25 +117,27 @@ router.get('/overview', (req, res) => {
 // GET /api/stats/tags
 // 各標籤正確率
 // ========================================
-router.get('/tags', (req, res) => {
+router.get('/tags', async (req, res) => {
     try {
         const studentId = getTargetStudentId(req);
 
-        const stats = db.prepare(`
+        const { rows: stats } = await db.query(`
             SELECT 
                 Tag as tag,
-                TotalAttempted as totalAttempted,
-                TotalCorrect as totalCorrect,
-                AccuracyRate as accuracyRate
+                TotalAttempted as totalattempted,
+                TotalCorrect as totalcorrect,
+                AccuracyRate as accuracyrate
             FROM StudentStats
-            WHERE StudentID = ?
+            WHERE StudentID = $1
             ORDER BY Tag
-        `).all(studentId);
+        `, [studentId]);
 
         // 加入標籤的中文名稱和類別
-        const { TAG_INFO } = require('../engine/questionGenerator');
         const enriched = stats.map(s => ({
-            ...s,
+            tag: s.tag,
+            totalAttempted: parseInt(s.totalattempted) || 0,
+            totalCorrect: parseInt(s.totalcorrect) || 0,
+            accuracyRate: parseFloat(s.accuracyrate) || 0,
             tagName: TAG_INFO[s.tag]?.name || s.tag,
             category: TAG_INFO[s.tag]?.category || '未知',
         }));
@@ -148,9 +156,8 @@ router.get('/tags', (req, res) => {
 // ========================================
 // GET /api/stats/history
 // 作答歷史紀錄
-// Query: ?limit=50&offset=0&tag=add_2d_nc
 // ========================================
-router.get('/history', (req, res) => {
+router.get('/history', async (req, res) => {
     try {
         const studentId = getTargetStudentId(req);
         const limit = parseInt(req.query.limit) || 50;
@@ -159,46 +166,53 @@ router.get('/history', (req, res) => {
 
         let query = `
             SELECT 
-                LogID as logId,
+                LogID as logid,
                 Tag as tag,
-                QuestionText as questionText,
-                CorrectAnswer as correctAnswer,
-                UserAnswer as userAnswer,
-                IsCorrect as isCorrect,
-                TimeTaken as timeTaken,
+                QuestionText as questiontext,
+                CorrectAnswer as correctanswer,
+                UserAnswer as useranswer,
+                IsCorrect as iscorrect,
+                TimeTaken as timetaken,
                 Timestamp as timestamp
             FROM QuestionLogs
-            WHERE StudentID = ?
+            WHERE StudentID = $1
         `;
         const params = [studentId];
 
         if (tag) {
-            query += ' AND Tag = ?';
             params.push(tag);
+            query += ' AND Tag = $' + params.length;
         }
 
-        query += ' ORDER BY Timestamp DESC LIMIT ? OFFSET ?';
+        query += ' ORDER BY Timestamp DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
         params.push(limit, offset);
 
-        const logs = db.prepare(query).all(...params);
+        const { rows: logs } = await db.query(query, params);
 
         // 總數
-        let countQuery = 'SELECT COUNT(*) as count FROM QuestionLogs WHERE StudentID = ?';
+        let countQuery = 'SELECT COUNT(*) as count FROM QuestionLogs WHERE StudentID = $1';
         const countParams = [studentId];
         if (tag) {
-            countQuery += ' AND Tag = ?';
             countParams.push(tag);
+            countQuery += ' AND Tag = $' + countParams.length;
         }
-        const total = db.prepare(countQuery).get(...countParams);
+        const { rows: countRows } = await db.query(countQuery, countParams);
+        const totalCount = parseInt(countRows[0].count) || 0;
 
         res.json({
             success: true,
-            total: total.count,
+            total: totalCount,
             limit,
             offset,
             history: logs.map(l => ({
-                ...l,
-                isCorrect: !!l.isCorrect
+                logId: l.logid,
+                tag: l.tag,
+                questionText: l.questiontext,
+                correctAnswer: l.correctanswer,
+                userAnswer: l.useranswer,
+                isCorrect: l.iscorrect === 1 || l.iscorrect === true,
+                timeTaken: parseFloat(l.timetaken) || 0,
+                timestamp: l.timestamp
             }))
         });
 
@@ -212,28 +226,33 @@ router.get('/history', (req, res) => {
 // GET /api/stats/weaknesses
 // 弱點分析 (正確率低於 70% 的標籤)
 // ========================================
-router.get('/weaknesses', (req, res) => {
+router.get('/weaknesses', async (req, res) => {
     try {
         const studentId = getTargetStudentId(req);
 
-        const weaknesses = db.prepare(`
+        const { rows: weaknesses } = await db.query(`
             SELECT 
                 Tag as tag,
-                TotalAttempted as totalAttempted,
-                TotalCorrect as totalCorrect,
-                AccuracyRate as accuracyRate
+                TotalAttempted as totalattempted,
+                TotalCorrect as totalcorrect,
+                AccuracyRate as accuracyrate
             FROM StudentStats
-            WHERE StudentID = ? AND TotalAttempted > 0 AND AccuracyRate < 70
+            WHERE StudentID = $1 AND TotalAttempted > 0 AND AccuracyRate < 70
             ORDER BY AccuracyRate ASC
-        `).all(studentId);
+        `, [studentId]);
 
-        const { TAG_INFO } = require('../engine/questionGenerator');
-        const enriched = weaknesses.map(w => ({
-            ...w,
-            tagName: TAG_INFO[w.tag]?.name || w.tag,
-            category: TAG_INFO[w.tag]?.category || '未知',
-            suggestion: getSuggestion(w.accuracyRate),
-        }));
+        const enriched = weaknesses.map(w => {
+            const acc = parseFloat(w.accuracyrate) || 0;
+            return {
+                tag: w.tag,
+                totalAttempted: parseInt(w.totalattempted) || 0,
+                totalCorrect: parseInt(w.totalcorrect) || 0,
+                accuracyRate: acc,
+                tagName: TAG_INFO[w.tag]?.name || w.tag,
+                category: TAG_INFO[w.tag]?.category || '未知',
+                suggestion: getSuggestion(acc),
+            };
+        });
 
         res.json({
             success: true,
@@ -251,26 +270,29 @@ router.get('/weaknesses', (req, res) => {
 // GET /api/stats/time-analysis
 // 作答時間分析 (各標籤平均作答時間)
 // ========================================
-router.get('/time-analysis', (req, res) => {
+router.get('/time-analysis', async (req, res) => {
     try {
         const studentId = getTargetStudentId(req);
 
-        const timeData = db.prepare(`
+        const { rows: timeData } = await db.query(`
             SELECT 
                 Tag as tag,
                 COUNT(*) as count,
-                ROUND(AVG(TimeTaken), 1) as avgTime,
-                ROUND(MIN(TimeTaken), 1) as minTime,
-                ROUND(MAX(TimeTaken), 1) as maxTime
+                ROUND(CAST(AVG(TimeTaken) AS NUMERIC), 1) as avgtime,
+                ROUND(CAST(MIN(TimeTaken) AS NUMERIC), 1) as mintime,
+                ROUND(CAST(MAX(TimeTaken) AS NUMERIC), 1) as maxtime
             FROM QuestionLogs
-            WHERE StudentID = ? AND TimeTaken > 0
+            WHERE StudentID = $1 AND TimeTaken > 0
             GROUP BY Tag
-            ORDER BY avgTime DESC
-        `).all(studentId);
+            ORDER BY avgtime DESC
+        `, [studentId]);
 
-        const { TAG_INFO } = require('../engine/questionGenerator');
         const enriched = timeData.map(t => ({
-            ...t,
+            tag: t.tag,
+            count: parseInt(t.count) || 0,
+            avgTime: parseFloat(t.avgtime) || 0,
+            minTime: parseFloat(t.mintime) || 0,
+            maxTime: parseFloat(t.maxtime) || 0,
             tagName: TAG_INFO[t.tag]?.name || t.tag,
             category: TAG_INFO[t.tag]?.category || '未知',
         }));
@@ -301,28 +323,33 @@ function getSuggestion(accuracyRate) {
 // GET /api/stats/teacher/students
 // 取得所有學生列表與基礎統計 (僅限教師)
 // ========================================
-router.get('/teacher/students', requireTeacher, (req, res) => {
+router.get('/teacher/students', requireTeacher, async (req, res) => {
     try {
-        const students = db.prepare(`
+        const { rows: students } = await db.query(`
             SELECT 
                 u.StudentID as id,
                 u.Name as name,
-                COALESCE(SUM(s.TotalAttempted), 0) as totalQuestions,
+                COALESCE(SUM(s.TotalAttempted), 0) as totalquestions,
                 CASE 
                     WHEN SUM(s.TotalAttempted) > 0 
-                    THEN ROUND(CAST(SUM(s.TotalCorrect) AS REAL) / SUM(s.TotalAttempted) * 100, 1)
+                    THEN ROUND(CAST(SUM(s.TotalCorrect) AS NUMERIC) / SUM(s.TotalAttempted) * 100, 1)
                     ELSE 0 
-                END as overallAccuracy
+                END as overallaccuracy
             FROM Users u
             LEFT JOIN StudentStats s ON u.StudentID = s.StudentID
             WHERE u.Role = 'student'
             GROUP BY u.StudentID
             ORDER BY u.StudentID
-        `).all();
+        `);
 
         res.json({
             success: true,
-            students
+            students: students.map(s => ({
+                id: s.id,
+                name: s.name,
+                totalQuestions: parseInt(s.totalquestions) || 0,
+                overallAccuracy: parseFloat(s.overallaccuracy) || 0
+            }))
         });
     } catch (error) {
         console.error('取得學生列表錯誤:', error);

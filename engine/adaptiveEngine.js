@@ -25,13 +25,19 @@ const DEFAULT_QUIZ_SIZE = 10;   // 每次練習題數
  * @param {string} studentId
  * @returns {Array} 各標籤統計
  */
-function getStudentStats(studentId) {
-    return db.prepare(`
-        SELECT Tag as tag, TotalAttempted as totalAttempted, 
-               TotalCorrect as totalCorrect, AccuracyRate as accuracyRate
+async function getStudentStats(studentId) {
+    const { rows } = await db.query(`
+        SELECT Tag as tag, TotalAttempted as totalattempted, 
+               TotalCorrect as totalcorrect, AccuracyRate as accuracyrate
         FROM StudentStats
-        WHERE StudentID = ?
-    `).all(studentId);
+        WHERE StudentID = $1
+    `, [studentId]);
+    return rows.map(r => ({
+        tag: r.tag,
+        totalAttempted: parseInt(r.totalattempted) || 0,
+        totalCorrect: parseInt(r.totalcorrect) || 0,
+        accuracyRate: parseFloat(r.accuracyrate) || 0
+    }));
 }
 
 /**
@@ -39,8 +45,8 @@ function getStudentStats(studentId) {
  * @param {string} studentId
  * @returns {{ weakTags: string[], strongTags: string[], stats: Object }}
  */
-function analyzeWeaknesses(studentId) {
-    const stats = getStudentStats(studentId);
+async function analyzeWeaknesses(studentId) {
+    const stats = await getStudentStats(studentId);
 
     const weakTags = [];
     const strongTags = [];
@@ -113,8 +119,8 @@ function weightedPick(tags, statsMap) {
  * @param {number} count - 題目數量 (預設 10)
  * @returns {{ questions: Array, distribution: Object }}
  */
-function generateAdaptiveQuiz(studentId, count = DEFAULT_QUIZ_SIZE) {
-    const { weakTags, strongTags, stats } = analyzeWeaknesses(studentId);
+async function generateAdaptiveQuiz(studentId, count = DEFAULT_QUIZ_SIZE) {
+    const { weakTags, strongTags, stats } = await analyzeWeaknesses(studentId);
 
     const questions = [];
     const distribution = {

@@ -32,13 +32,13 @@ router.use(requireAuth);
 // 取得一組題目（10 題）— 使用適性派題機制
 // Query: ?count=10 (選填，預設 10)
 // ========================================
-router.get('/questions', (req, res) => {
+router.get('/questions', async (req, res) => {
     try {
         const count = parseInt(req.query.count) || 10;
         const studentId = req.session.studentId;
 
         // 使用適性派題引擎
-        const { questions: fullQuestions, distribution } = generateAdaptiveQuiz(studentId, count);
+        const { questions: fullQuestions, distribution } = await generateAdaptiveQuiz(studentId, count);
 
         // 儲存完整題目到 session（含答案，用於驗證）
         req.session.currentQuiz = fullQuestions.map((q, idx) => ({
@@ -86,7 +86,8 @@ router.get('/questions', (req, res) => {
 // 批量提交整組答案
 // Body: { answers: [{ index, userAnswer, timeTaken }] }
 // ========================================
-router.post('/submit', (req, res) => {
+router.post('/submit', async (req, res) => {
+    let client;
     try {
         const studentId = req.session.studentId;
         const { answers } = req.body;
@@ -106,64 +107,69 @@ router.post('/submit', (req, res) => {
             });
         }
 
-        // 準備 SQL 語句
-        const insertLog = db.prepare(`
+        const insertLogQuery = `
             INSERT INTO QuestionLogs (StudentID, Tag, QuestionText, CorrectAnswer, UserAnswer, IsCorrect, TimeTaken)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `);
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `;
 
-        const updateStats = db.prepare(`
+        const updateStatsQuery = `
             UPDATE StudentStats 
             SET TotalAttempted = TotalAttempted + 1,
-                TotalCorrect = TotalCorrect + ?,
-                AccuracyRate = ROUND(CAST(TotalCorrect + ? AS REAL) / (TotalAttempted + 1) * 100, 2)
-            WHERE StudentID = ? AND Tag = ?
-        `);
+                TotalCorrect = TotalCorrect + $1,
+                AccuracyRate = ROUND(CAST(TotalCorrect + $2 AS NUMERIC) / (TotalAttempted + 1) * 100, 2)
+            WHERE StudentID = $3 AND Tag = $4
+        `;
 
         const results = [];
         let correctCount = 0;
         let totalTime = 0;
 
         // 使用 transaction 批量處理
-        const processAnswers = db.transaction(() => {
-            for (const ans of answers) {
-                const question = quiz.find(q => q.index === ans.index);
-                if (!question) continue;
+        client = await db.connect();
+        await client.query('BEGIN');
 
-                const userAnswer = parseFloat(ans.userAnswer);
-                const isCorrect = (userAnswer === question.correctAnswer) ? 1 : 0;
-                const timeTaken = parseFloat(ans.timeTaken) || 0;
+        for (const ans of answers) {
+            const question = quiz.find(q => q.index === ans.index);
+            if (!question) continue;
 
-                if (isCorrect) correctCount++;
-                totalTime += timeTaken;
+            const userAnswer = parseFloat(ans.userAnswer);
+            const isCorrect = (userAnswer === question.correctAnswer) ? 1 : 0;
+            const timeTaken = parseFloat(ans.timeTaken) || 0;
 
-                // 寫入 QuestionLogs
-                insertLog.run(
-                    studentId,
-                    question.tag,
-                    question.questionText,
-                    question.correctAnswer,
-                    userAnswer,
-                    isCorrect,
-                    timeTaken
-                );
+            if (isCorrect) correctCount++;
+            totalTime += timeTaken;
 
-                // 更新 StudentStats
-                updateStats.run(isCorrect, isCorrect, studentId, question.tag);
+            // 寫入 QuestionLogs
+            await client.query(insertLogQuery, [
+                studentId,
+                question.tag,
+                question.questionText,
+                question.correctAnswer,
+                userAnswer,
+                isCorrect,
+                timeTaken
+            ]);
 
-                results.push({
-                    index: question.index,
-                    questionText: question.questionText,
-                    correctAnswer: question.correctAnswer,
-                    userAnswer: userAnswer,
-                    isCorrect: !!isCorrect,
-                    timeTaken: timeTaken,
-                    tag: question.tag,
-                });
-            }
-        });
+            // 更新 StudentStats
+            await client.query(updateStatsQuery, [
+                isCorrect,
+                isCorrect,
+                studentId,
+                question.tag
+            ]);
 
-        processAnswers();
+            results.push({
+                index: question.index,
+                questionText: question.questionText,
+                correctAnswer: question.correctAnswer,
+                userAnswer: userAnswer,
+                isCorrect: !!isCorrect,
+                timeTaken: timeTaken,
+                tag: question.tag,
+            });
+        }
+
+        await client.query('COMMIT');
 
         // 清除 session 中的測驗資料
         req.session.currentQuiz = null;
@@ -187,11 +193,14 @@ router.post('/submit', (req, res) => {
         });
 
     } catch (error) {
+        if (client) await client.query('ROLLBACK');
         console.error('提交答案錯誤:', error);
         res.status(500).json({
             success: false,
             message: '提交失敗'
         });
+    } finally {
+        if (client) client.release();
     }
 });
 
@@ -200,7 +209,7 @@ router.post('/submit', (req, res) => {
 // 提交單題答案（即時回饋）
 // Body: { index, userAnswer, timeTaken }
 // ========================================
-router.post('/answer', (req, res) => {
+router.post('/answer', async (req, res) => {
     try {
         const studentId = req.session.studentId;
         const { index, userAnswer, timeTaken } = req.body;
@@ -226,19 +235,19 @@ router.post('/answer', (req, res) => {
         const parsedTime = parseFloat(timeTaken) || 0;
 
         // 寫入 QuestionLogs
-        db.prepare(`
+        await db.query(`
             INSERT INTO QuestionLogs (StudentID, Tag, QuestionText, CorrectAnswer, UserAnswer, IsCorrect, TimeTaken)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(studentId, question.tag, question.questionText, question.correctAnswer, parsedAnswer, isCorrect, parsedTime);
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `, [studentId, question.tag, question.questionText, question.correctAnswer, parsedAnswer, isCorrect, parsedTime]);
 
         // 更新 StudentStats
-        db.prepare(`
+        await db.query(`
             UPDATE StudentStats 
             SET TotalAttempted = TotalAttempted + 1,
-                TotalCorrect = TotalCorrect + ?,
-                AccuracyRate = ROUND(CAST(TotalCorrect + ? AS REAL) / (TotalAttempted + 1) * 100, 2)
-            WHERE StudentID = ? AND Tag = ?
-        `).run(isCorrect, isCorrect, studentId, question.tag);
+                TotalCorrect = TotalCorrect + $1,
+                AccuracyRate = ROUND(CAST(TotalCorrect + $2 AS NUMERIC) / (TotalAttempted + 1) * 100, 2)
+            WHERE StudentID = $3 AND Tag = $4
+        `, [isCorrect, isCorrect, studentId, question.tag]);
 
         // 從 session 中移除已作答的題目
         req.session.currentQuiz = quiz.filter(q => q.index !== index);

@@ -56,20 +56,25 @@ app.use('/api/stats', require('./routes/stats'));
 // ========================================
 // 健康檢查端點
 // ========================================
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
     try {
         // 驗證資料庫連線
-        const userCount = db.prepare('SELECT COUNT(*) as count FROM Users').get();
-        const tableInfo = db.prepare(`
-            SELECT name FROM sqlite_master WHERE type='table' ORDER BY name
-        `).all();
+        const { rows: userRows } = await db.query('SELECT COUNT(*) as count FROM Users');
+        const userCount = parseInt(userRows[0].count) || 0;
+        
+        const { rows: tableInfo } = await db.query(`
+            SELECT table_name as name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            ORDER BY table_name
+        `);
 
         res.json({
             status: 'ok',
             database: {
                 connected: true,
                 tables: tableInfo.map(t => t.name),
-                userCount: userCount.count
+                userCount: userCount
             },
             timestamp: new Date().toISOString()
         });
@@ -84,17 +89,18 @@ app.get('/api/health', (req, res) => {
 // ========================================
 // 資料庫狀態端點（開發用）
 // ========================================
-app.get('/api/db-status', (req, res) => {
+app.get('/api/db-status', async (req, res) => {
     try {
-        const users = db.prepare('SELECT StudentID, Name FROM Users').all();
-        const stats = db.prepare('SELECT * FROM StudentStats').all();
-        const logCount = db.prepare('SELECT COUNT(*) as count FROM QuestionLogs').get();
+        const { rows: users } = await db.query('SELECT StudentID, Name FROM Users');
+        const { rows: stats } = await db.query('SELECT * FROM StudentStats');
+        const { rows: logRows } = await db.query('SELECT COUNT(*) as count FROM QuestionLogs');
+        const logCount = parseInt(logRows[0].count) || 0;
 
         res.json({
-            users,
+            users: users.map(u => ({ StudentID: u.studentid, Name: u.name })),
             statsCount: stats.length,
             statsSample: stats.slice(0, 10),
-            questionLogCount: logCount.count
+            questionLogCount: logCount
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
