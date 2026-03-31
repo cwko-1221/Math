@@ -300,11 +300,16 @@
     }
 
     function renderTimeChart(timeData) {
-        const ctx = document.getElementById('time-chart');
-        if (!ctx) return;
+        let container = document.getElementById('time-chart-container');
+        if (!container) return;
+
+        if (timeChartObj) {
+            timeChartObj.destroy();
+            timeChartObj = null;
+        }
 
         if (timeData.length === 0) {
-            ctx.parentElement.innerHTML = `
+            container.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon">📊</div>
                     <div class="empty-state-text">還沒有作答紀錄<br>開始練習後就會顯示時間分析</div>
@@ -312,6 +317,10 @@
             `;
             return;
         }
+
+        // 重新建立 canvas 確保不會因為之前的空狀態而消失
+        container.innerHTML = '<canvas id="time-chart"></canvas>';
+        const ctx = document.getElementById('time-chart');
 
         const labels = timeData.map(t => t.tagName.replace(/\(.*\)/, '').trim());
         const values = timeData.map(t => t.avgTime);
@@ -322,10 +331,6 @@
             if (v <= 20) return 'rgba(245, 158, 11, 0.7)';
             return 'rgba(239, 68, 68, 0.7)';
         });
-
-        if (timeChartObj) {
-            timeChartObj.destroy();
-        }
 
         timeChartObj = new Chart(ctx, {
             type: 'bar',
