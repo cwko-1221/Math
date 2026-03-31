@@ -31,6 +31,9 @@ app.use(cors({
     credentials: true
 }));
 
+// Trust Proxy: Vercel 等雲端平台的代理伺服器必備，才能正確傳遞 HTTPS Cookie
+app.set('trust proxy', 1);
+
 // Session 設定
 app.use(session({
     name: 'session',
