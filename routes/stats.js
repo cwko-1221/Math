@@ -77,7 +77,7 @@ router.get('/overview', async (req, res) => {
                     THEN ROUND(CAST(SUM(IsCorrect) AS NUMERIC) / COUNT(*) * 100, 1)
                     ELSE 0 
                 END as todayaccuracy,
-                COALESCE(ROUND(AVG(TimeTaken), 1), 0) as avgtime
+                COALESCE(ROUND(CAST(AVG(TimeTaken) AS NUMERIC), 1), 0) as avgtime
             FROM QuestionLogs
             WHERE StudentID = $1 AND CAST(Timestamp AS DATE) = CURRENT_DATE
         `, [studentId]);

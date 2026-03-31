@@ -75,17 +75,10 @@ router.post('/login', async (req, res) => {
  * POST /api/auth/logout
  */
 router.post('/logout', (req, res) => {
-    req.session.destroy((err) => {
-        if (err) {
-            return res.status(500).json({
-                success: false,
-                message: '登出失敗'
-            });
-        }
-        res.json({
-            success: true,
-            message: '已登出'
-        });
+    req.session = null;
+    res.json({
+        success: true,
+        message: '已登出'
     });
 });
 

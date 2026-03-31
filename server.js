@@ -4,7 +4,7 @@
  */
 
 const express = require('express');
-const session = require('express-session');
+const session = require('cookie-session');
 const cors = require('cors');
 const path = require('path');
 const os = require('os');
@@ -33,14 +33,11 @@ app.use(cors({
 
 // Session 設定
 app.use(session({
-    secret: 'adaptive-math-secret-key-2024',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-        secure: false, // 開發環境用 HTTP
-        httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000 // 24 小時
-    }
+    name: 'session',
+    keys: ['adaptive-math-secret-key-2024'],
+    maxAge: 24 * 60 * 60 * 1000, // 24 小時
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true
 }));
 
 // 靜態檔案服務
