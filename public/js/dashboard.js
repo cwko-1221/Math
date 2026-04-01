@@ -76,11 +76,12 @@
                 if (e.target.value) {
                     currentStudentId = e.target.value;
                     if (deleteBtn) deleteBtn.style.display = 'inline-flex';
+                    document.getElementById('dashboard-content').style.display = 'block';
                     await reloadAllStats();
                 } else {
                     currentStudentId = '';
                     if (deleteBtn) deleteBtn.style.display = 'none';
-                    // Optional: hide or clear dashboard content when no student is selected
+                    document.getElementById('dashboard-content').style.display = 'none';
                 }
             });
 
