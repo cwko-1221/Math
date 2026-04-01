@@ -1,5 +1,5 @@
-/* ========================================
-   國小四則運算適性學習系統 - 設計系統
+﻿/* ========================================
+   ???????拇批飛蝧頂蝯?- 閮剛?蝟餌絞
    Modern Dark Theme with Glassmorphism
    ======================================== */
 
@@ -1068,32 +1068,55 @@ a { color: var(--accent-blue); text-decoration: none; }
     .quiz-header { flex-direction: column; align-items: flex-start; }
 }
 
- / *   = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-       C a n v a s   S c r a t c h p a d 
-       = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =   * / 
- . s k e t c h p a d - c o n t a i n e r   { 
-         m a r g i n :   2 4 p x   0 ; 
-         b o r d e r - r a d i u s :   v a r ( - - r a d i u s - l g ) ; 
-         o v e r f l o w :   h i d d e n ; 
-         p o s i t i o n :   r e l a t i v e ; 
-         b a c k g r o u n d :   r g b a ( 1 0 ,   1 4 ,   2 6 ,   0 . 4 ) ; 
- } 
- 
- . s k e t c h p a d - h e a d e r   { 
-         d i s p l a y :   f l e x ; 
-         j u s t i f y - c o n t e n t :   s p a c e - b e t w e e n ; 
-         a l i g n - i t e m s :   c e n t e r ; 
-         p a d d i n g :   1 2 p x   2 0 p x ; 
-         b o r d e r - b o t t o m :   1 p x   s o l i d   v a r ( - - b o r d e r - s u b t l e ) ; 
-         b a c k g r o u n d :   r g b a ( 2 5 5 ,   2 5 5 ,   2 5 5 ,   0 . 0 2 ) ; 
- } 
- 
- c a n v a s # s c r a t c h p a d   { 
-         w i d t h :   1 0 0 % ; 
-         h e i g h t :   3 5 0 p x ; 
-         c u r s o r :   c r o s s h a i r ; 
-         d i s p l a y :   b l o c k ; 
-         t o u c h - a c t i o n :   n o n e ; 
- } 
-  
- 
+/* ========================================
+   Modal Component
+   ======================================== */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    z-index: 500;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; visibility: hidden;
+    transition: all var(--transition-base);
+}
+.modal-overlay.active {
+    opacity: 1; visibility: visible;
+}
+.modal-content {
+    width: 100%; max-width: 480px; padding: 32px;
+    transform: translateY(20px); transition: transform var(--transition-base);
+}
+.modal-overlay.active .modal-content {
+    transform: translateY(0);
+}
+
+
+/* ========================================
+   Canvas Scratchpad
+   ======================================== */
+.sketchpad-container {
+    margin: 24px 0;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    position: relative;
+    background: rgba(10, 14, 26, 0.4);
+}
+
+.sketchpad-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+canvas#scratchpad {
+    width: 100%;
+    height: 350px;
+    cursor: crosshair;
+    display: block;
+    touch-action: none;
+}

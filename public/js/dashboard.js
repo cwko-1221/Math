@@ -381,6 +381,78 @@
     }
 
     // ========================================
+    // Add Student Modal Logic
+    // ========================================
+    const modal = document.getElementById('add-student-modal');
+    const btnAddStudent = document.getElementById('btn-add-student');
+    const btnCancelAdd = document.getElementById('btn-cancel-add');
+    const addStudentForm = document.getElementById('add-student-form');
+    const errorDiv = document.getElementById('add-student-error');
+
+    if (btnAddStudent && modal) {
+        btnAddStudent.addEventListener('click', () => {
+            addStudentForm.reset();
+            errorDiv.style.display = 'none';
+            modal.classList.add('active');
+        });
+
+        btnCancelAdd.addEventListener('click', () => {
+            modal.classList.remove('active');
+        });
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.classList.remove('active');
+        });
+
+        addStudentForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = document.getElementById('btn-submit-add');
+            submitBtn.disabled = true;
+            submitBtn.textContent = '新增中...';
+            errorDiv.style.display = 'none';
+
+            const payload = {
+                studentId: document.getElementById('new-student-id').value.trim(),
+                name: document.getElementById('new-student-name').value.trim(),
+                password: document.getElementById('new-student-password').value
+            };
+
+            try {
+                const res = await fetch('/api/auth/register-student', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    modal.classList.remove('active');
+                    alert('🎉 學生新增成功！');
+                    
+                    document.getElementById('student-selector').innerHTML = '<option value="">請選擇學生...</option>';
+                    await loadStudentList();
+                    
+                    const selector = document.getElementById('student-selector');
+                    selector.value = payload.studentId;
+                    currentStudentId = payload.studentId;
+                    await reloadAllStats();
+                } else {
+                    errorDiv.textContent = data.message || '新增失敗';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (err) {
+                errorDiv.textContent = '網路連線錯誤，請重試。';
+                errorDiv.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '確認新增';
+            }
+        });
+    }
+
+    // ========================================
     // Logout
     // ========================================
     document.getElementById('logout-btn').addEventListener('click', async () => {

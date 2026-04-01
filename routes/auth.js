@@ -104,4 +104,57 @@ router.get('/me', (req, res) => {
     });
 });
 
+/**
+ * POST /api/auth/register-student
+ * 教師專用：新增學生
+ * Body: { studentId, name, password }
+ */
+router.post('/register-student', async (req, res) => {
+    try {
+        // 權限驗證
+        if (req.session.role !== 'teacher') {
+            return res.status(403).json({ success: false, message: '權限不足，僅限教師操作' });
+        }
+
+        const { studentId, name, password } = req.body;
+        if (!studentId || !name || !password) {
+            return res.status(400).json({ success: false, message: '請填寫完整資訊 (學號、姓名、密碼)' });
+        }
+
+        // 檢查學號是否已存在
+        const { rows: existing } = await db.query('SELECT StudentID FROM Users WHERE StudentID = $1', [studentId]);
+        if (existing.length > 0) {
+            return res.status(400).json({ success: false, message: '學號已經存在' });
+        }
+
+        // 加密密碼與寫入
+        const hash = bcrypt.hashSync(password, 10);
+        await db.query(`
+            INSERT INTO Users (StudentID, Name, PasswordHash, Role)
+            VALUES ($1, $2, $3, 'student')
+        `, [studentId, name, hash]);
+
+        // 初始化學生統據
+        const allTags = [
+            'add_2d_nc', 'add_2d_c', 'sub_2d_b', 'sub_3d_z_mid',
+            'mul_2x2_nc_nc', 'mul_2x2_c_c', 'div_3d_1d_z0_mid', 'div_3d_1d_z0_end'
+        ];
+        
+        for (const tag of allTags) {
+            await db.query(`
+                INSERT INTO StudentStats (StudentID, Tag, TotalAttempted, TotalCorrect, AccuracyRate)
+                VALUES ($1, $2, 0, 0, 0.0)
+                ON CONFLICT (StudentID, Tag) DO NOTHING
+            `, [studentId, tag]);
+        }
+
+        res.json({ success: true, message: '學生帳號建立成功' });
+
+    } catch (error) {
+        console.error('新增學生錯誤:', error);
+        res.status(500).json({ success: false, message: '伺服器錯誤' });
+    }
+});
+
 module.exports = router;
+

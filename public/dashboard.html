@@ -30,13 +30,16 @@
             <h1 style="font-size:1.6rem; font-weight:800; margin-bottom:8px;">👨‍🏫 教師儀表板</h1>
             <p style="color:var(--text-muted); margin-bottom:16px; font-size:0.9rem;">查看班上學生的學習進度與弱點分析</p>
 
-            <div style="margin-bottom: 24px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: var(--radius-md);">
-                <label for="student-selector" style="font-weight: bold; margin-right: 12px;">選擇學生：</label>
-                <select id="student-selector" style="padding: 8px; border-radius: 4px; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-subtle); display:none;">
-                    <option value="">請選擇學生...</option>
-                    <!-- Options filled by JS -->
-                </select>
-                <span id="student-loading" style="color: var(--text-muted); font-size: 0.9rem;">載入名單中...</span>
+            <div style="margin-bottom: 24px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                <div>
+                    <label for="student-selector" style="font-weight: bold; margin-right: 12px;">選擇學生：</label>
+                    <select id="student-selector" style="padding: 8px; border-radius: 4px; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-subtle); display:none;">
+                        <option value="">請選擇學生...</option>
+                        <!-- Options filled by JS -->
+                    </select>
+                    <span id="student-loading" style="color: var(--text-muted); font-size: 0.9rem;">載入名單中...</span>
+                </div>
+                <button id="btn-add-student" class="btn btn-primary" style="padding: 8px 16px; font-size: 0.9rem;">➕ 新增學生</button>
             </div>
 
             <!-- Loading -->
@@ -112,6 +115,34 @@
                 </div>
 
             </div>
+        </div>
+    </div>
+
+    <!-- Add Student Modal -->
+    <div id="add-student-modal" class="modal-overlay">
+        <div class="modal-content glass-card-static">
+            <h2 style="font-size: 1.4rem; font-weight: 700; margin-bottom: 16px;">新增學生</h2>
+            <div id="add-student-error" class="login-error" style="display: none;"></div>
+            
+            <form id="add-student-form">
+                <div class="form-group">
+                    <label class="form-label">學號</label>
+                    <input type="text" id="new-student-id" class="form-input" placeholder="例如: S006" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">姓名</label>
+                    <input type="text" id="new-student-name" class="form-input" placeholder="例如: 新學生" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">登入密碼</label>
+                    <input type="password" id="new-student-password" class="form-input" placeholder="設定初始密碼" required>
+                </div>
+                
+                <div style="display: flex; gap: 12px; margin-top: 24px; justify-content: flex-end;">
+                    <button type="button" id="btn-cancel-add" class="btn btn-ghost">取消</button>
+                    <button type="submit" id="btn-submit-add" class="btn btn-primary">確認新增</button>
+                </div>
+            </form>
         </div>
     </div>
 
