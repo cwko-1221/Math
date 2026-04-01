@@ -78,6 +78,11 @@ async function initializeDatabase() {
         await seedDefaultUsers();
         await initializeStudentStats();
 
+        // 強制更新現有的教師名稱
+        try {
+            await db.query(`UPDATE Users SET Name = '老師' WHERE StudentID = 'T001' AND Name = '孔子老師'`);
+        } catch (e) {}
+
     } catch (e) {
         console.error('資料庫初始化失敗:', e);
     }
@@ -90,7 +95,7 @@ async function seedDefaultUsers() {
         { id: 'S003', name: '張小美', password: '123456', role: 'student' },
         { id: 'S004', name: '陳大偉', password: '123456', role: 'student' },
         { id: 'S005', name: '林小芬', password: '123456', role: 'student' },
-        { id: 'T001', name: '孔子老師', password: '123456', role: 'teacher' },
+        { id: 'T001', name: '老師', password: '123456', role: 'teacher' },
     ];
 
     for (const user of defaultUsers) {

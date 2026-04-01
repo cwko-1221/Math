@@ -156,5 +156,43 @@ router.post('/register-student', async (req, res) => {
     }
 });
 
+/**
+ * DELETE /api/auth/delete-student/:studentId
+ * 教師專用：刪除學生
+ */
+router.delete('/delete-student/:studentId', async (req, res) => {
+    try {
+        // 權限驗證
+        if (req.session.role !== 'teacher') {
+            return res.status(403).json({ success: false, message: '權限不足，僅限教師操作' });
+        }
+
+        const { studentId } = req.params;
+        if (!studentId) {
+            return res.status(400).json({ success: false, message: '無效的學生 ID' });
+        }
+
+        // 安全檢查：不允許刪除老師帳號
+        const { rows: userCheck } = await db.query("SELECT Role FROM Users WHERE StudentID = $1", [studentId]);
+        if (userCheck.length === 0) {
+            return res.status(404).json({ success: false, message: '找不到該學生帳號' });
+        }
+        if (userCheck[0].role === 'teacher') {
+            return res.status(403).json({ success: false, message: '無法刪除教師帳號' });
+        }
+
+        // 依序刪除 (FK 依賴：先刪除 Logs 與 Stats，再刪除 User)
+        await db.query("DELETE FROM QuestionLogs WHERE StudentID = $1", [studentId]);
+        await db.query("DELETE FROM StudentStats WHERE StudentID = $1", [studentId]);
+        await db.query("DELETE FROM Users WHERE StudentID = $1", [studentId]);
+
+        res.json({ success: true, message: '學生已成功刪除' });
+
+    } catch (error) {
+        console.error('刪除學生錯誤:', error);
+        res.status(500).json({ success: false, message: '伺服器錯誤' });
+    }
+});
+
 module.exports = router;
 
