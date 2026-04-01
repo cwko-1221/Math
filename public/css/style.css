@@ -1120,3 +1120,19 @@ canvas#scratchpad {
     display: block;
     touch-action: none;
 }
+
+/* Logo Image Styles */
+.navbar-brand .logo-img {
+    height: 36px;
+    object-fit: contain;
+    border-radius: var(--radius-sm);
+    display: block;
+}
+.login-img {
+    height: 100px;
+    object-fit: contain;
+    margin: 0 auto 24px;
+    display: block;
+    filter: drop-shadow(0 8px 16px rgba(0,0,0,0.3));
+    animation: float 3s ease-in-out infinite;
+}
