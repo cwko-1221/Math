@@ -86,7 +86,7 @@ router.post('/logout', (req, res) => {
  * GET /api/auth/me
  * 取得目前登入的學生資訊
  */
-router.get('/me', (req, res) => {
+router.get('/me', async (req, res) => {
     if (!req.session.studentId) {
         return res.status(401).json({
             success: false,
@@ -94,14 +94,42 @@ router.get('/me', (req, res) => {
         });
     }
 
-    res.json({
-        success: true,
-        student: {
-            id: req.session.studentId,
-            name: req.session.studentName,
-            role: req.session.role || 'student'
+    try {
+        // 從資料庫取得最新名稱與角色狀態，避免 Cookie 暫存舊名字
+        const { rows } = await db.query('SELECT Name, Role FROM Users WHERE StudentID = $1', [req.session.studentId]);
+        
+        let currentName = req.session.studentName;
+        let currentRole = req.session.role || 'student';
+
+        if (rows.length > 0) {
+            currentName = rows[0].name;
+            currentRole = rows[0].role;
+            
+            // 順便更新 Session
+            req.session.studentName = currentName;
+            req.session.role = currentRole;
         }
-    });
+
+        res.json({
+            success: true,
+            student: {
+                id: req.session.studentId,
+                name: currentName,
+                role: currentRole
+            }
+        });
+    } catch (e) {
+        console.error('取得使用者狀態錯誤:', e);
+        // 若發生錯誤，退回使用 Session 緩存
+        res.json({
+            success: true,
+            student: {
+                id: req.session.studentId,
+                name: req.session.studentName,
+                role: req.session.role || 'student'
+            }
+        });
+    }
 });
 
 /**
