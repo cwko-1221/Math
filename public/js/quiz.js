@@ -102,20 +102,45 @@
     // ========================================
     function initCanvas() {
         // Resize canvas to match display size
-        function resizeCanvas() {
-            const rect = canvas.parentElement.getBoundingClientRect();
-            canvas.width = rect.width;
-            canvas.height = rect.height || 350;
+        window.resizeCanvas = function() {
+            if (!canvas) return;
             
-            // Set drawing style
-            ctx.lineJoin = 'round';
-            ctx.lineCap = 'round';
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = '#f1f5f9'; // 白/灰字體顏色
-        }
+            // Get the actual display size from CSS
+            const displayWidth = canvas.clientWidth;
+            const displayHeight = canvas.clientHeight;
+            
+            // Only resize if the internal resolution doesn't match the display size
+            // This also handles the fallback if clientWidth/Height is 0
+            if (displayWidth > 0 && displayHeight > 0) {
+                if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+                    canvas.width = displayWidth;
+                    canvas.height = displayHeight;
+                    
+                    // Reset drawing styles as resizing clears the context
+                    if (ctx) {
+                        ctx.lineJoin = 'round';
+                        ctx.lineCap = 'round';
+                        ctx.lineWidth = 3;
+                        ctx.strokeStyle = '#f1f5f9';
+                    }
+                }
+            } else {
+                // Fallback for initial state or if hidden
+                const rect = canvas.parentElement.getBoundingClientRect();
+                canvas.width = rect.width || 800;
+                canvas.height = 350; // Use the fixed height from CSS as default
+                
+                if (ctx) {
+                    ctx.lineJoin = 'round';
+                    ctx.lineCap = 'round';
+                    ctx.lineWidth = 3;
+                    ctx.strokeStyle = '#f1f5f9';
+                }
+            }
+        };
         
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+        window.addEventListener('resize', window.resizeCanvas);
+        window.resizeCanvas();
 
         function startDrawing(e) {
             isDrawing = true;
@@ -141,17 +166,25 @@
 
         function getPos(e) {
             const rect = canvas.getBoundingClientRect();
-            // Handle touch
+            
+            // Map the client coordinates to canvas internal coordinates
+            // This accounts for any CSS scaling applied to the canvas element
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            let clientX, clientY;
+            
             if (e.touches && e.touches.length > 0) {
-                return {
-                    x: e.touches[0].clientX - rect.left,
-                    y: e.touches[0].clientY - rect.top
-                };
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
             }
-            // Handle mouse
+            
             return {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
             };
         }
 
@@ -218,13 +251,9 @@
         // （因為 display:none 時 getBoundingClientRect() 會回傳 0）
         if (state === 'quiz' && canvas) {
             requestAnimationFrame(() => {
-                const rect = canvas.parentElement.getBoundingClientRect();
-                canvas.width = rect.width;
-                canvas.height = rect.height || 350;
-                ctx.lineJoin = 'round';
-                ctx.lineCap = 'round';
-                ctx.lineWidth = 3;
-                ctx.strokeStyle = '#f1f5f9';
+                if (window.resizeCanvas) {
+                    window.resizeCanvas();
+                }
             });
         }
     }
