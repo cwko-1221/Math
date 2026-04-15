@@ -85,6 +85,7 @@ router.post('/logout', (req, res) => {
 /**
  * GET /api/auth/me
  * 取得目前登入的學生資訊
+ */
 router.get('/me', async (req, res) => {
     // [Local Testing Mock] 如果沒有資料庫，強制提供一個測試帳號
     if (!process.env.DATABASE_URL && !req.session.studentId) {
